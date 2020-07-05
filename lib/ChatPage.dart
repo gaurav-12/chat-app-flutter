@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -13,7 +14,7 @@ class ChatPage extends StatefulWidget {
 
 class ChatPageState extends State<ChatPage> {
   SocketIO.Socket socketIO;
-  List<String> messages;
+  List<dynamic> messages;
   double height, width;
   TextEditingController textController;
   ScrollController scrollController;
@@ -26,7 +27,7 @@ class ChatPageState extends State<ChatPage> {
 
   @override
   void initState() {
-    messages = List<String>();
+    messages = List<dynamic>();
 
     textController = TextEditingController();
     textController.addListener(onTextChange);
@@ -41,10 +42,10 @@ class ChatPageState extends State<ChatPage> {
 
     socketIO.on('receive_message', (message) {
       setState(() {
+        message['source'] = 'other';
         messages.add(message);
         scrollController.animateTo(
-            scrollController.position.maxScrollExtent +
-                window.physicalSize.height * 0.16,
+            scrollController.position.maxScrollExtent,
             curve: Curves.ease,
             duration: Duration(milliseconds: 500));
       });
@@ -91,8 +92,9 @@ class ChatPageState extends State<ChatPage> {
       height: height,
       width: width,
       child: ListView.builder(
+        reverse: true,
         padding:
-            EdgeInsets.symmetric(vertical: window.physicalSize.height * 0.16),
+            EdgeInsets.only(top: window.physicalSize.height * 0.05, bottom: window.physicalSize.height * 0.2),
         controller: scrollController,
         itemCount: messages.length,
         itemBuilder: (BuildContext context, int index) {
@@ -151,19 +153,20 @@ class ChatPageState extends State<ChatPage> {
               // Resetting animated text field's properties
               numOfLines = 1;
 
+              Map<String, String> messageObj = {'source': 'self', 'message': textController.text.trim()};
+
               //Send the message as JSON data to send_message event
-              socketIO.emit('send_message', textController.text.trim());
+              socketIO.emit('send_message', messageObj);
 
               //Add the message to the list
-              setState(() => messages.add(textController.text.trim()));
+              setState(() => messages.add(messageObj));
 
               textController.text = '';
 
               Timer(Duration(milliseconds: 100), () {
                 //Scrolldown the list to show the latest message
                 scrollController.animateTo(
-                  scrollController.position.maxScrollExtent +
-                      window.physicalSize.height * 0.16,
+                  scrollController.position.maxScrollExtent,
                   duration: Duration(milliseconds: 600),
                   curve: Curves.ease,
                 );
