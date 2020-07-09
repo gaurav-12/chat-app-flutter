@@ -25,19 +25,19 @@ class SingleMessageState extends State<SingleMessage>
         AnimationController(vsync: this, duration: Duration(milliseconds: 500));
     slideAnim = Tween<Offset>(begin: widget.messageObj['source'] == 'self'? Offset(2, 0) : Offset(-2, 0), end: Offset.zero)
         .animate(new CurvedAnimation(parent: animController, curve: Curves.ease));
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => {
-          this.setState(() {
-            messageBoxOpacity = 1;
-            animController.forward();
-          })
-        });
     
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => {
+          this.setState(() {
+            messageBoxOpacity = 1;
+            animController.forward();
+          })
+        });
+        
     return AnimatedOpacity(
         duration: Duration(milliseconds: 800),
         opacity: messageBoxOpacity,
