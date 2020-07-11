@@ -27,11 +27,14 @@ class ChatPageState extends State<ChatPage> {
 
   bool submittingName;
   bool nameValid;
+  String selfName;
 
   final String url = "https://chat-app-flutter-node.herokuapp.com";
 
   @override
   void initState() {
+    super.initState();
+
     messages = List<dynamic>();
 
     textController = TextEditingController();
@@ -40,20 +43,18 @@ class ChatPageState extends State<ChatPage> {
     scrollController = ScrollController();
     nameFieldController = TextEditingController();
 
-    textFieldHeight = window.physicalSize.height * 0.12;
-    baseTextFieldHeight = window.physicalSize.height * 0.12;
+    textFieldHeight = 60;
+    baseTextFieldHeight = 60;
     textFieldFontSize = 18;
 
     submittingName = false;
     nameValid = true;
-
-    super.initState();
-
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => {showInitDialog(scaffoldContext)});
+    selfName = '';
   }
 
+  bool connected = false;
   void initSocket(context) {
+    print('Init Socket...');
     socketIO = SocketIO.io(url);
 
     socketIO.on('receive_message', (message) {
@@ -68,7 +69,11 @@ class ChatPageState extends State<ChatPage> {
     socketIO.connect();
     socketIO.on('connect', (_) {
       print('successfully connected!');
-      Navigator.of(context).pop();
+      if (!connected) {
+        selfName = nameFieldController.text.trim();
+        Navigator.of(context).pop();
+        connected = true;
+      }
     });
     socketIO.on('connect_error', (_) {
       print('an error occured while connecting to the server');
@@ -80,17 +85,22 @@ class ChatPageState extends State<ChatPage> {
 
   Timer timer;
   void submitName(context) {
+    print('Submitting name...');
     if (nameFieldController.text.trim().isEmpty) {
+      print('Invalid name');
+
       setState(() {
         nameValid = false;
       });
 
+      if (timer != null) timer.cancel();
       timer = Timer(Duration(seconds: 3), () {
         setState(() {
           nameValid = true;
         });
       });
     } else {
+      print('Valid name');
       if (timer != null) timer.cancel();
       setState(() {
         submittingName = true;
@@ -101,7 +111,10 @@ class ChatPageState extends State<ChatPage> {
     }
   }
 
-  dynamic showInitDialog(contextParent) async {
+  bool showingDialog = false;
+  dynamic showInitDialog(contextParent) {
+    showingDialog = true;
+
     return showCupertinoDialog(
         barrierDismissible: false,
         context: contextParent,
@@ -110,13 +123,22 @@ class ChatPageState extends State<ChatPage> {
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20.0)),
             child: Container(
-              constraints: BoxConstraints.expand(height: 250),
+              constraints: BoxConstraints.expand(height: 280),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+                      child: Text(
+                          'So, what should others call you? Enter a unique name for others to identify you',
+                          style: TextStyle(
+                            fontSize: 16
+                          ),
+                          ),
+                    ),
                     Container(
                         margin: EdgeInsets.symmetric(horizontal: 30),
                         decoration: BoxDecoration(
@@ -130,9 +152,8 @@ class ChatPageState extends State<ChatPage> {
                                 fontWeight: FontWeight.bold,
                                 fontSize: 20,
                                 color: Colors.black),
-                            textAlign: TextAlign.center,
                             decoration: InputDecoration(
-                                hintText: 'So, what should others call you?',
+                                hintText: 'Unique user name...',
                                 counterText: '',
                                 errorText: nameValid
                                     ? null
@@ -140,12 +161,17 @@ class ChatPageState extends State<ChatPage> {
                             autofocus: true,
                             maxLines: 1,
                             maxLength: 15)),
-                    
                     Container(
                         margin: EdgeInsets.all(20),
                         decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(100.0),
-                            color: Colors.black),
+                            color: Colors.black,
+                            boxShadow: [
+                              BoxShadow(
+                                  blurRadius: 3,
+                                  offset: Offset(0, 1),
+                                  color: Colors.black54)
+                            ]),
                         child: RawMaterialButton(
                           shape: new RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(100.0)),
@@ -218,9 +244,7 @@ class ChatPageState extends State<ChatPage> {
       width: width,
       child: ListView.builder(
         reverse: true,
-        padding: EdgeInsets.only(
-            top: window.physicalSize.height * 0.05,
-            bottom: window.physicalSize.height * 0.2),
+        padding: EdgeInsets.only(top: 100, bottom: 110),
         controller: scrollController,
         itemCount: messages.length,
         itemBuilder: (BuildContext context, int index) {
@@ -262,8 +286,8 @@ class ChatPageState extends State<ChatPage> {
 
   Widget buildSendButton() {
     return Container(
-        height: window.physicalSize.height * 0.13,
-        width: window.physicalSize.height * 0.13,
+        height: 60,
+        width: 60,
         decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.black,
@@ -281,6 +305,7 @@ class ChatPageState extends State<ChatPage> {
 
               Map<String, String> messageObj = {
                 'source': 'self',
+                'name': selfName,
                 'message': textController.text.trim()
               };
 
@@ -332,6 +357,15 @@ class ChatPageState extends State<ChatPage> {
     height = MediaQuery.of(context).size.height;
     width = MediaQuery.of(context).size.width;
     scaffoldContext = context;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (showingDialog && !connected) {
+        Navigator.pop(context);
+        showInitDialog(context);
+      } else if (!connected) {
+        showInitDialog(context);
+      }
+    });
 
     return Scaffold(
         key: mainScaffoldKey,
