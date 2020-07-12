@@ -19,6 +19,10 @@ class ChatPageState extends State<ChatPage> {
   TextEditingController textController;
   ScrollController scrollController;
   TextEditingController nameFieldController;
+  FocusNode messageFocusNode;
+
+  bool sendingMessage;
+
   BuildContext scaffoldContext;
 
   double textFieldHeight;
@@ -39,6 +43,9 @@ class ChatPageState extends State<ChatPage> {
 
     textController = TextEditingController();
     textController.addListener(onTextChange);
+    messageFocusNode = FocusNode();
+
+    sendingMessage = false;
 
     scrollController = ScrollController();
     nameFieldController = TextEditingController();
@@ -123,7 +130,7 @@ class ChatPageState extends State<ChatPage> {
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20.0)),
             child: Container(
-              constraints: BoxConstraints.expand(height: 280),
+              constraints: BoxConstraints.expand(height: 350, width: 500),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
@@ -131,13 +138,12 @@ class ChatPageState extends State<ChatPage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
-                      margin: EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+                      margin:
+                          EdgeInsets.symmetric(horizontal: 30, vertical: 20),
                       child: Text(
-                          'So, what should others call you? Enter a unique name for others to identify you',
-                          style: TextStyle(
-                            fontSize: 16
-                          ),
-                          ),
+                        'So, what should others call you? Enter a unique name for others to identify you',
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
                     Container(
                         margin: EdgeInsets.symmetric(horizontal: 30),
@@ -145,6 +151,7 @@ class ChatPageState extends State<ChatPage> {
                             borderRadius: BorderRadius.circular(10),
                             color: Colors.white),
                         child: TextField(
+                            textInputAction: TextInputAction.done,
                             controller: nameFieldController,
                             onSubmitted: (value) => submitName(contextParent),
                             enabled: !submittingName,
@@ -158,7 +165,6 @@ class ChatPageState extends State<ChatPage> {
                                 errorText: nameValid
                                     ? null
                                     : "Please enter a unique user name for others to identify you"),
-                            autofocus: true,
                             maxLines: 1,
                             maxLength: 15)),
                     Container(
@@ -193,8 +199,19 @@ class ChatPageState extends State<ChatPage> {
                                       size: 20,
                                       color: Colors.white,
                                     )
-                                  : CupertinoActivityIndicator(
-                                      animating: true, radius: 15)
+                                  : Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          backgroundColor: Colors.black,
+                                          strokeWidth: 2.0,
+                                          valueColor:
+                                              new AlwaysStoppedAnimation(
+                                                  Colors.white),
+                                        ),
+                                      ),
+                                    )
                             ],
                           ),
                         ))
@@ -272,6 +289,7 @@ class ChatPageState extends State<ChatPage> {
       child: Align(
           alignment: Alignment.centerLeft,
           child: TextField(
+            focusNode: messageFocusNode,
             maxLines: null,
             cursorColor: Colors.white,
             style: TextStyle(color: Colors.white, fontSize: textFieldFontSize),
@@ -296,43 +314,65 @@ class ChatPageState extends State<ChatPage> {
                   blurRadius: 5, offset: Offset(0, 2), color: Colors.black54)
             ]),
         child: RawMaterialButton(
-          shape: new CircleBorder(),
-          onPressed: () {
-            //Check if the textfield is not empty and it does not contain only whitespaces
-            if (textController.text.trim().isNotEmpty) {
-              // Resetting animated text field's properties
-              numOfLines = 1;
+            shape: new CircleBorder(),
+            onPressed: () {
+              //Check if the textfield is not empty and it does not contain only whitespaces
+              if (!sendingMessage && textController.text.trim().isNotEmpty) {
+                messageFocusNode.unfocus();
+                setState(() {
+                  sendingMessage = true;
+                });
 
-              Map<String, String> messageObj = {
-                'source': 'self',
-                'name': selfName,
-                'message': textController.text.trim()
-              };
+                Map<String, String> messageObj = {
+                  'source': 'self',
+                  'name': selfName,
+                  'message': textController.text.trim()
+                };
 
-              //Send the message as JSON data to send_message event
-              socketIO.emit('send_message', messageObj);
+                //Send the message as JSON data to send_message event
+                socketIO.emitWithAck('send_message', messageObj,
+                  ack: (ackObj) {
+                    print(ackObj);
 
-              //Add the message to the list
-              setState(() => messages.add(messageObj));
+                    //Add the message to the list
+                    setState(() {
+                      messages.add(messageObj);
+                      sendingMessage = false;
+                    });
 
-              textController.text = '';
+                    // Resetting animated text field's properties
+                    numOfLines = 1;
+                    textController.text = '';
 
-              Timer(Duration(milliseconds: 100), () {
-                //Scrolldown the list to show the latest message
-                scrollController.animateTo(
-                  scrollController.position.maxScrollExtent,
-                  duration: Duration(milliseconds: 600),
-                  curve: Curves.ease,
+                    Timer(Duration(milliseconds: 100), () {
+                      //Scrolldown the list to show the latest message
+                      scrollController.animateTo(
+                        scrollController.position.maxScrollExtent,
+                        duration: Duration(milliseconds: 600),
+                        curve: Curves.ease,
+                      );
+                    });
+                  }
                 );
-              });
-            }
-          },
-          child: Icon(
-            Icons.send,
-            size: 25,
-            color: Colors.white,
-          ),
-        ));
+              }
+            },
+            child: !sendingMessage
+                ? Icon(
+                    Icons.send,
+                    size: 25,
+                    color: Colors.white,
+                  )
+                : Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        backgroundColor: Colors.black,
+                        strokeWidth: 2.0,
+                        valueColor: new AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    ),
+                  )));
   }
 
   Widget buildInputArea() {
