@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'dart:html' as html;
 
 import 'package:ChatApp/NameDialog.dart';
 import 'package:flutter/cupertino.dart';
@@ -17,8 +18,13 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   SocketIO.Socket socketIO;
   String newMemberName;
   double notificationBoxOp;
-  Animation<Offset> slideAnim;
-  AnimationController animController;
+  Animation<Offset> notificationSlideAnim;
+  AnimationController notificationAnimController;
+
+  double membersCount;
+  double userCountBoxOp;
+  Animation<Offset> userCountSlideAnim;
+  AnimationController userCountAnimController;
 
   List<dynamic> messages;
   double height, width;
@@ -49,11 +55,21 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       'autoConnect': false,
     });
     newMemberName = '';
+    membersCount = 0;
     notificationBoxOp = 0;
-    animController =
+    notificationAnimController =
         AnimationController(vsync: this, duration: Duration(milliseconds: 500));
-    slideAnim = Tween<Offset>(begin: Offset(0, -100), end: Offset.zero).animate(
-        new CurvedAnimation(parent: animController, curve: Curves.easeInOut));
+    notificationSlideAnim =
+        Tween<Offset>(begin: Offset(0, -2), end: Offset.zero).animate(
+            new CurvedAnimation(
+                parent: notificationAnimController, curve: Curves.easeInOut));
+
+    userCountBoxOp = 0;
+    userCountAnimController =
+        AnimationController(vsync: this, duration: Duration(milliseconds: 500));
+    userCountSlideAnim = Tween<Offset>(begin: Offset(-5, 0), end: Offset.zero)
+        .animate(new CurvedAnimation(
+            parent: userCountAnimController, curve: Curves.easeInOut));
 
     messages = List<dynamic>();
 
@@ -74,8 +90,21 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     nameValid = true;
     selfName = '';
 
+    html.window.onBeforeUnload.listen((onData) {
+      socketIO.emitWithAck('count_change', {'name': selfName}, ack: (ackObj) {
+        if (ackObj['success']) socketIO.disconnect();
+      });
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showInitDialog(scaffoldContext);
+
+      // Test Notification box
+      // notificationAnimController.forward();
+      // setState(() {
+      //   notificationBoxOp = 1;
+      //   newMemberName = 'Some Unique User Name';
+      // });
     });
   }
 
@@ -86,15 +115,22 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       setState(() {
         message['source'] = 'other';
         messages.add(message);
-        scrollController.animateTo(scrollController.position.maxScrollExtent,
-            curve: Curves.ease, duration: Duration(milliseconds: 500));
+      });
+
+      Timer(Duration(milliseconds: 100), () {
+        //Scrolldown the list to show the latest message
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 500),
+          curve: Curves.ease,
+        );
       });
     });
 
     socketIO.on('new_member', (message) {
       print("New member added: " + message['name']);
 
-      animController.forward();
+      notificationAnimController.forward();
       setState(() {
         notificationBoxOp = 1;
         newMemberName = message['name'];
@@ -102,10 +138,15 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
       if (notificationTimer != null) notificationTimer.cancel();
       notificationTimer = Timer(Duration(seconds: 5), () {
-        animController.reverse();
+        notificationAnimController.reverse();
         setState(() {
           notificationBoxOp = 0;
         });
+      });
+    });
+    socketIO.on('count_change', (count) {
+      setState(() {
+        membersCount = count;
       });
     });
 
@@ -116,15 +157,28 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         Navigator.of(scaffoldContext).pop();
         connected = true;
 
-        socketIO.emit('new_member', {'name': selfName});
+        socketIO.emitWithAck('new_member', {'name': selfName},
+            ack: (usersCount) {
+          print('Users connected: ' + usersCount.toString());
+
+          userCountAnimController.forward();
+          setState(() {
+            membersCount = usersCount;
+            userCountBoxOp = 1;
+          });
+        });
       }
     });
 
     socketIO.on('connect_error', (_) {
       print('An error occured while connecting to the server');
     });
+    socketIO.on('disconnect', (_) {
+      print('Disconnected!');
+    });
+
     socketIO.on('error', (_) {
-      print('an error occured');
+      print('An error occured');
     });
 
     print('Init Socket...');
@@ -232,7 +286,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           color: Colors.black,
           boxShadow: [
             BoxShadow(
-                blurRadius: 5, offset: Offset(0, 2), color: Colors.black54)
+                blurRadius: 5, offset: Offset(0, 2), color: Colors.black45)
           ]),
       child: Align(
           alignment: Alignment.centerLeft,
@@ -259,7 +313,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             color: Colors.black,
             boxShadow: [
               BoxShadow(
-                  blurRadius: 5, offset: Offset(0, 2), color: Colors.black54)
+                  blurRadius: 5, offset: Offset(0, 1), color: Colors.black45)
             ]),
         child: RawMaterialButton(
             shape: new CircleBorder(),
@@ -295,7 +349,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                     //Scrolldown the list to show the latest message
                     scrollController.animateTo(
                       scrollController.position.maxScrollExtent,
-                      duration: Duration(milliseconds: 600),
+                      duration: Duration(milliseconds: 500),
                       curve: Curves.ease,
                     );
                   });
@@ -343,10 +397,9 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           duration: Duration(milliseconds: 250),
           opacity: notificationBoxOp,
           child: SlideTransition(
-            position: slideAnim,
+            position: notificationSlideAnim,
             child: Container(
               width: 500,
-              height: 80,
               decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(5),
                   color: Colors.black,
@@ -369,7 +422,8 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   Flexible(
                     child: RichText(
                         text: TextSpan(
-                            text: "Welcome another Rick to the Citadel with an interesting name, ",
+                            text:
+                                "Welcome another Rick to the Citadel with an interesting name, ",
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.white70,
@@ -394,7 +448,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                           shape: CircleBorder(),
                           color: Colors.white12,
                           onPressed: () {
-                            animController.reverse();
+                            notificationAnimController.reverse();
                             setState(() {
                               notificationBoxOp = 0;
                             });
@@ -411,6 +465,46 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             ),
           )),
     );
+  }
+
+  Widget buildUserCountBox() {
+    return Align(
+        alignment: Alignment.topLeft,
+        child: AnimatedOpacity(
+            duration: Duration(milliseconds: 250),
+            opacity: userCountBoxOp,
+            child: SlideTransition(
+                position: userCountSlideAnim,
+                child: Container(
+                  width: 80,
+                  decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(100),
+                      color: Colors.black,
+                      boxShadow: [
+                        BoxShadow(
+                            blurRadius: 5,
+                            color: Colors.black45,
+                            offset: Offset(0, 1))
+                      ]),
+                  padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                  margin: EdgeInsets.all(15),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Padding(
+                        child: Icon(Icons.group, color: Colors.white, size: 20),
+                        padding: EdgeInsets.only(right: 20),
+                      ),
+                      Text(
+                        membersCount.toString(),
+                        style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold),
+                      )
+                    ],
+                  ),
+                ))));
   }
 
   final mainScaffoldKey = GlobalKey<ScaffoldState>();
@@ -431,6 +525,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               ),
             ),
             buildInputArea(),
+            buildUserCountBox(),
             buildNotificationBox()
           ],
         ));
