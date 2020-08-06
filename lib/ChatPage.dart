@@ -45,6 +45,9 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   bool nameValid;
   String selfName;
 
+  final GlobalKey<AnimatedListState> messagesListKey =
+      GlobalKey<AnimatedListState>();
+
   final String url = "https://chat-app-flutter-node.herokuapp.com";
 
   @override
@@ -112,15 +115,15 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   Timer notificationTimer;
   void initSocket(name) {
     socketIO.on('receive_message', (message) {
-      setState(() {
-        message['source'] = 'other';
-        messages.add(message);
-      });
+      message['source'] = 'other';
+      messages.insert(0, message);
+      messagesListKey.currentState
+          .insertItem(0, duration: Duration(milliseconds: 500));
 
       Timer(Duration(milliseconds: 100), () {
         //Scrolldown the list to show the latest message
         scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
+          scrollController.position.minScrollExtent,
           duration: Duration(milliseconds: 500),
           curve: Curves.ease,
         );
@@ -253,21 +256,20 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Widget buildSingleMessage(int index) {
-    return SingleMessage(messages[index]);
-  }
-
   Widget buildMessageList() {
     return Container(
       height: height,
       width: width,
-      child: ListView.builder(
+      child: AnimatedList(
+        key: messagesListKey,
+        physics: BouncingScrollPhysics(),
         reverse: true,
         padding: EdgeInsets.only(top: 100, bottom: 110),
         controller: scrollController,
-        itemCount: messages.length,
-        itemBuilder: (BuildContext context, int index) {
-          return buildSingleMessage(index);
+        initialItemCount: messages.length,
+        itemBuilder:
+            (BuildContext context, int index, Animation<double> animation) {
+          return SingleMessage(messages[index], animation);
         },
       ),
     );
@@ -333,11 +335,11 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
                 //Send the message as JSON data to send_message event
                 socketIO.emitWithAck('send_message', messageObj, ack: (ackObj) {
-                  print(ackObj);
-
                   //Add the message to the list
+                  messages.insert(0, messageObj);
+                  messagesListKey.currentState
+                      .insertItem(0, duration: Duration(milliseconds: 500));
                   setState(() {
-                    messages.add(messageObj);
                     sendingMessage = false;
                   });
 
@@ -348,7 +350,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   Timer(Duration(milliseconds: 100), () {
                     //Scrolldown the list to show the latest message
                     scrollController.animateTo(
-                      scrollController.position.maxScrollExtent,
+                      scrollController.position.minScrollExtent,
                       duration: Duration(milliseconds: 500),
                       curve: Curves.ease,
                     );
