@@ -26,6 +26,9 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   Animation<Offset> userCountSlideAnim;
   AnimationController userCountAnimController;
 
+  double inputAreaBoxOp;
+  Animation<Offset> inputAreaSlideAnim;
+
   List<dynamic> messages;
   double height, width;
   TextEditingController textController;
@@ -66,11 +69,16 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         Tween<Offset>(begin: Offset(0, -2), end: Offset.zero).animate(
             new CurvedAnimation(
                 parent: notificationAnimController, curve: Curves.easeInOut));
-
+    
     userCountBoxOp = 0;
     userCountAnimController =
         AnimationController(vsync: this, duration: Duration(milliseconds: 500));
-    userCountSlideAnim = Tween<Offset>(begin: Offset(-5, 0), end: Offset.zero)
+    userCountSlideAnim = Tween<Offset>(begin: Offset(-2, 0), end: Offset.zero)
+        .animate(new CurvedAnimation(
+            parent: userCountAnimController, curve: Curves.easeInOut));
+
+    inputAreaBoxOp = 0;
+    inputAreaSlideAnim = Tween<Offset>(begin: Offset(0, 2), end: Offset.zero)
         .animate(new CurvedAnimation(
             parent: userCountAnimController, curve: Curves.easeInOut));
 
@@ -133,11 +141,11 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     socketIO.on('new_member', (message) {
       print("New member added: " + message['name']);
 
-      notificationAnimController.forward();
       setState(() {
         notificationBoxOp = 1;
         newMemberName = message['name'];
       });
+      notificationAnimController.forward();
 
       if (notificationTimer != null) notificationTimer.cancel();
       notificationTimer = Timer(Duration(seconds: 5), () {
@@ -168,6 +176,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           setState(() {
             membersCount = usersCount;
             userCountBoxOp = 1;
+            inputAreaBoxOp = 1;
           });
         });
       }
@@ -216,15 +225,17 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
   }
 
-  bool showingDialog = false;
   dynamic showInitDialog(contextParent) {
-    showingDialog = true;
-
     return showCupertinoDialog(
         barrierDismissible: false,
         context: contextParent,
         builder: (BuildContext context) {
           return NameDialog(initSocket);
+        }).then((val) {
+          if(!connected) {
+            print('Dialog closed without connecting...reopening now...');
+            showInitDialog(contextParent);
+          }
         });
   }
 
@@ -380,16 +391,21 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   Widget buildInputArea() {
     return Align(
         alignment: Alignment.bottomCenter,
-        child: Container(
-          padding: EdgeInsets.only(left: 20, bottom: 20, right: 20),
-          width: width,
-          child: Row(
-            children: <Widget>[
-              buildChatInput(),
-              buildSendButton(),
-            ],
-          ),
-        ));
+        child: AnimatedOpacity(
+            duration: Duration(milliseconds: 250),
+            opacity: inputAreaBoxOp,
+            child: SlideTransition(
+                position: inputAreaSlideAnim,
+                child: Container(
+                  padding: EdgeInsets.only(left: 20, bottom: 20, right: 20),
+                  width: width,
+                  child: Row(
+                    children: <Widget>[
+                      buildChatInput(),
+                      buildSendButton(),
+                    ],
+                  ),
+                ))));
   }
 
   Widget buildNotificationBox() {
