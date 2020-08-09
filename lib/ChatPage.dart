@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'dart:html' as html;
 
 import 'package:ChatApp/NameDialog.dart';
+import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as SocketIO;
@@ -24,10 +25,13 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   double membersCount;
   double userCountBoxOp;
   Animation<Offset> userCountSlideAnim;
-  AnimationController userCountAnimController;
+  AnimationController slideAnimController;
 
   double inputAreaBoxOp;
   Animation<Offset> inputAreaSlideAnim;
+
+  double nightModeSwitchOp;
+  Animation<Offset> nightModeSwitchSlideAnim;
 
   List<dynamic> messages;
   double height, width;
@@ -69,18 +73,25 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         Tween<Offset>(begin: Offset(0, -2), end: Offset.zero).animate(
             new CurvedAnimation(
                 parent: notificationAnimController, curve: Curves.easeInOut));
-    
-    userCountBoxOp = 0;
-    userCountAnimController =
+
+    slideAnimController =
         AnimationController(vsync: this, duration: Duration(milliseconds: 500));
+
+    userCountBoxOp = 0;
     userCountSlideAnim = Tween<Offset>(begin: Offset(-2, 0), end: Offset.zero)
         .animate(new CurvedAnimation(
-            parent: userCountAnimController, curve: Curves.easeInOut));
+            parent: slideAnimController, curve: Curves.easeInOut));
 
     inputAreaBoxOp = 0;
     inputAreaSlideAnim = Tween<Offset>(begin: Offset(0, 2), end: Offset.zero)
         .animate(new CurvedAnimation(
-            parent: userCountAnimController, curve: Curves.easeInOut));
+            parent: slideAnimController, curve: Curves.easeInOut));
+
+    nightModeSwitchOp = 0;
+    nightModeSwitchSlideAnim =
+        Tween<Offset>(begin: Offset(2, 0), end: Offset.zero).animate(
+            new CurvedAnimation(
+                parent: slideAnimController, curve: Curves.easeInOut));
 
     messages = List<dynamic>();
 
@@ -172,11 +183,12 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             ack: (usersCount) {
           print('Users connected: ' + usersCount.toString());
 
-          userCountAnimController.forward();
+          slideAnimController.forward();
           setState(() {
             membersCount = usersCount;
             userCountBoxOp = 1;
             inputAreaBoxOp = 1;
+            nightModeSwitchOp = 1;
           });
         });
       }
@@ -230,13 +242,13 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         barrierDismissible: false,
         context: contextParent,
         builder: (BuildContext context) {
-          return NameDialog(initSocket);
+          return NameDialog(initSocket, contextParent);
         }).then((val) {
-          if(!connected) {
-            print('Dialog closed without connecting...reopening now...');
-            showInitDialog(contextParent);
-          }
-        });
+      if (!connected) {
+        print('Dialog closed without connecting...reopening now...');
+        showInitDialog(contextParent);
+      }
+    });
   }
 
   int numOfLines = 1;
@@ -280,7 +292,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         initialItemCount: messages.length,
         itemBuilder:
             (BuildContext context, int index, Animation<double> animation) {
-          return SingleMessage(messages[index], animation);
+          return SingleMessage(messages[index], animation, scaffoldContext);
         },
       ),
     );
@@ -289,27 +301,45 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   Widget buildChatInput() {
     return Expanded(
         child: AnimatedContainer(
-      duration: Duration(milliseconds: 250),
+      duration: Duration(milliseconds: 300),
       curve: Curves.ease,
       height: textFieldHeight,
       padding: EdgeInsets.symmetric(horizontal: 30),
       margin: EdgeInsets.only(right: 20),
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
-          color: Colors.black,
+          color: Theme.of(scaffoldContext).brightness == Brightness.light
+              ? Colors.white
+              : Colors.blueGrey[900],
           boxShadow: [
             BoxShadow(
-                blurRadius: 5, offset: Offset(0, 2), color: Colors.black45)
+                blurRadius: 3,
+                color: Theme.of(context).brightness == Brightness.light
+                    ? Colors.lightBlue[200]
+                    : Colors.black54,
+                offset: Offset(0, 1))
           ]),
       child: Align(
           alignment: Alignment.centerLeft,
           child: TextField(
+            scrollPhysics: BouncingScrollPhysics(),
             focusNode: messageFocusNode,
             maxLines: null,
-            cursorColor: Colors.white,
-            style: TextStyle(color: Colors.white, fontSize: textFieldFontSize),
+            cursorColor:
+                Theme.of(scaffoldContext).brightness == Brightness.light
+                    ? Colors.black87
+                    : Colors.white70,
+            style: TextStyle(
+                color: Theme.of(scaffoldContext).brightness == Brightness.light
+                    ? Colors.black87
+                    : Colors.white70,
+                fontSize: textFieldFontSize),
             decoration: InputDecoration.collapsed(
-              hintStyle: TextStyle(color: Colors.white30),
+              hintStyle: TextStyle(
+                  color:
+                      Theme.of(scaffoldContext).brightness == Brightness.light
+                          ? Colors.black45
+                          : Colors.white30),
               hintText: 'Some message here...',
             ),
             controller: textController,
@@ -318,15 +348,22 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Widget buildSendButton() {
-    return Container(
+    return AnimatedContainer(
+        duration: Duration(milliseconds: 300),
         height: 60,
         width: 60,
         decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.black,
+            color: Theme.of(scaffoldContext).brightness == Brightness.light
+                ? Colors.lightBlue
+                : Colors.blueGrey[900],
             boxShadow: [
               BoxShadow(
-                  blurRadius: 5, offset: Offset(0, 1), color: Colors.black45)
+                  blurRadius: 3,
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.lightBlue[200]
+                      : Colors.black54,
+                  offset: Offset(0, 1))
             ]),
         child: RawMaterialButton(
             shape: new CircleBorder(),
@@ -373,16 +410,26 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 ? Icon(
                     Icons.send,
                     size: 25,
-                    color: Colors.white,
+                    color:
+                        Theme.of(scaffoldContext).brightness == Brightness.light
+                            ? Colors.white
+                            : Colors.white70,
                   )
                 : Center(
                     child: SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                        backgroundColor: Colors.black,
+                        backgroundColor: Theme.of(scaffoldContext).brightness ==
+                                Brightness.light
+                            ? Colors.lightBlue
+                            : Colors.blueGrey[900],
                         strokeWidth: 2.0,
-                        valueColor: new AlwaysStoppedAnimation(Colors.white),
+                        valueColor: new AlwaysStoppedAnimation(
+                            Theme.of(scaffoldContext).brightness ==
+                                    Brightness.light
+                                ? Colors.white
+                                : Colors.white70),
                       ),
                     ),
                   )));
@@ -416,15 +463,20 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           opacity: notificationBoxOp,
           child: SlideTransition(
             position: notificationSlideAnim,
-            child: Container(
+            child: AnimatedContainer(
+              duration: Duration(milliseconds: 300),
               width: 500,
               decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(5),
-                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(100),
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.lightBlue
+                      : Colors.blueGrey[900],
                   boxShadow: [
                     BoxShadow(
-                        blurRadius: 10,
-                        color: Colors.black45,
+                        blurRadius: 3,
+                        color: Theme.of(context).brightness == Brightness.light
+                            ? Colors.lightBlue[200]
+                            : Colors.black54,
                         offset: Offset(0, 1))
                   ]),
               padding: EdgeInsets.all(15),
@@ -434,7 +486,11 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 children: [
                   Padding(
                     child: Icon(Icons.notifications_active,
-                        color: Colors.white, size: 35),
+                        color: Theme.of(scaffoldContext).brightness ==
+                                Brightness.light
+                            ? Colors.white
+                            : Colors.white70,
+                        size: 35),
                     padding: EdgeInsets.only(right: 30),
                   ),
                   Flexible(
@@ -444,14 +500,20 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                                 "Welcome another Rick to the Citadel with an interesting name, ",
                             style: TextStyle(
                               fontSize: 16,
-                              color: Colors.white70,
+                              color: Theme.of(scaffoldContext).brightness ==
+                                      Brightness.light
+                                  ? Colors.white70
+                                  : Colors.white54,
                             ),
                             children: [
                           TextSpan(
                             text: newMemberName,
                             style: TextStyle(
                                 fontSize: 16,
-                                color: Colors.white,
+                                color: Theme.of(scaffoldContext).brightness ==
+                                        Brightness.light
+                                    ? Colors.white
+                                    : Colors.white70,
                                 fontWeight: FontWeight.bold),
                           )
                         ])),
@@ -462,6 +524,7 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         height: 40,
                         width: 40,
                         child: MaterialButton(
+                          elevation: 0,
                           padding: EdgeInsets.zero,
                           shape: CircleBorder(),
                           color: Colors.white12,
@@ -473,7 +536,10 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                           },
                           child: Icon(
                             Icons.close,
-                            color: Colors.white,
+                            color: Theme.of(scaffoldContext).brightness ==
+                                    Brightness.light
+                                ? Colors.white
+                                : Colors.white70,
                             size: 20,
                           ),
                         )),
@@ -493,15 +559,21 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             opacity: userCountBoxOp,
             child: SlideTransition(
                 position: userCountSlideAnim,
-                child: Container(
-                  width: 80,
+                child: AnimatedContainer(
+                  duration: Duration(milliseconds: 300),
+                  width: 90,
                   decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(100),
-                      color: Colors.black,
+                      color: Theme.of(context).brightness == Brightness.light
+                          ? Colors.lightBlue
+                          : Colors.blueGrey[900],
                       boxShadow: [
                         BoxShadow(
-                            blurRadius: 5,
-                            color: Colors.black45,
+                            blurRadius: 3,
+                            color:
+                                Theme.of(context).brightness == Brightness.light
+                                    ? Colors.lightBlue[200]
+                                    : Colors.black54,
                             offset: Offset(0, 1))
                       ]),
                   padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -510,19 +582,116 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Padding(
-                        child: Icon(Icons.group, color: Colors.white, size: 20),
+                        child: Icon(Icons.group,
+                            color: Theme.of(scaffoldContext).brightness ==
+                                    Brightness.light
+                                ? Colors.white
+                                : Colors.white70,
+                            size: 25),
                         padding: EdgeInsets.only(right: 20),
                       ),
                       Text(
                         membersCount.toString(),
                         style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.white,
+                            fontSize: 20,
+                            color: Theme.of(scaffoldContext).brightness ==
+                                    Brightness.light
+                                ? Colors.white
+                                : Colors.white70,
                             fontWeight: FontWeight.bold),
                       )
                     ],
                   ),
                 ))));
+  }
+
+  Widget buildNightModeSwitch() {
+    return Align(
+        alignment: Alignment.topRight,
+        child: AnimatedOpacity(
+            duration: Duration(milliseconds: 250),
+            opacity: nightModeSwitchOp,
+            child: SlideTransition(
+                position: nightModeSwitchSlideAnim,
+                child: GestureDetector(
+                    onTap: () {
+                      DynamicTheme.of(context).setBrightness(
+                          Theme.of(context).brightness == Brightness.dark
+                              ? Brightness.light
+                              : Brightness.dark);
+                    },
+                    child: AnimatedContainer(
+                        duration: Duration(milliseconds: 300),
+                        width: 90,
+                        decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(100),
+                            color:
+                                Theme.of(context).brightness == Brightness.light
+                                    ? Colors.lightBlue
+                                    : Colors.blueGrey[900],
+                            boxShadow: [
+                              BoxShadow(
+                                  blurRadius: 3,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.light
+                                      ? Colors.lightBlue[200]
+                                      : Colors.black54,
+                                  offset: Offset(0, 1))
+                            ]),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                        margin: EdgeInsets.all(15),
+                        child: Wrap(
+                          children: [
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                AnimatedAlign(
+                                  alignment:
+                                      Theme.of(scaffoldContext).brightness ==
+                                              Brightness.light
+                                          ? Alignment.centerRight
+                                          : Alignment.centerLeft,
+                                  duration: Duration(milliseconds: 1000),
+                                  curve: Curves.easeOutQuart,
+                                  child: Icon(
+                                    Theme.of(scaffoldContext).brightness ==
+                                            Brightness.light
+                                        ? Icons.cloud
+                                        : Icons.star,
+                                    size: 20,
+                                    color:
+                                        Theme.of(scaffoldContext).brightness ==
+                                                Brightness.light
+                                            ? Colors.white24
+                                            : Colors.blueGrey[800],
+                                  ),
+                                ),
+                                AnimatedAlign(
+                                  alignment:
+                                      Theme.of(scaffoldContext).brightness ==
+                                              Brightness.light
+                                          ? Alignment.centerLeft
+                                          : Alignment.centerRight,
+                                  duration: Duration(milliseconds: 500),
+                                  curve: Curves.bounceOut,
+                                  child: Icon(
+                                    Theme.of(scaffoldContext).brightness ==
+                                            Brightness.light
+                                        ? Icons.brightness_7
+                                        : Icons.brightness_3,
+                                    size: 25,
+                                    color:
+                                        Theme.of(scaffoldContext).brightness ==
+                                                Brightness.light
+                                            ? Colors.white
+                                            : Colors.lightBlue[50],
+                                  ),
+                                )
+                              ],
+                            )
+                          ],
+                        ))))));
   }
 
   final mainScaffoldKey = GlobalKey<ScaffoldState>();
@@ -535,17 +704,36 @@ class ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
     return Scaffold(
         key: mainScaffoldKey,
-        body: Stack(
-          children: <Widget>[
-            SingleChildScrollView(
-              child: Column(
-                children: <Widget>[buildMessageList()],
-              ),
+        backgroundColor: Colors.transparent,
+        body: AnimatedContainer(
+            duration: Duration(milliseconds: 300),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).brightness == Brightness.light
+                        ? Colors.lightBlue[100]
+                        : Colors.blueGrey[900],
+                    Theme.of(context).brightness == Brightness.light
+                        ? Colors.lightBlue[50]
+                        : Colors.blueGrey[800]
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0.0, 1.0],
+                  tileMode: TileMode.clamp),
             ),
-            buildInputArea(),
-            buildUserCountBox(),
-            buildNotificationBox()
-          ],
-        ));
+            child: Stack(
+              children: <Widget>[
+                SingleChildScrollView(
+                  child: Column(
+                    children: <Widget>[buildMessageList()],
+                  ),
+                ),
+                buildInputArea(),
+                buildUserCountBox(),
+                buildNightModeSwitch(),
+                buildNotificationBox()
+              ],
+            )));
   }
 }

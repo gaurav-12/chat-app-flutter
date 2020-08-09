@@ -4,10 +4,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class SingleMessage extends StatefulWidget {
-  dynamic messageObj;
-  Animation<double> entryAnim;
+  final dynamic messageObj;
+  final Animation<double> entryAnim;
+  final BuildContext parentContext;
 
-  SingleMessage(this.messageObj, this.entryAnim);
+  SingleMessage(this.messageObj, this.entryAnim, this.parentContext);
 
   @override
   SingleMessageState createState() => SingleMessageState();
@@ -44,13 +45,28 @@ class SingleMessageState extends State<SingleMessage>
           alignment: widget.messageObj['source'] == 'self'
               ? Alignment.centerRight
               : Alignment.centerLeft,
-          child: Container(
+          child: AnimatedContainer(
+              duration: Duration(milliseconds: 300),
               padding: EdgeInsets.all(20),
               margin: EdgeInsets.only(top: 10, bottom: 10, right: 50, left: 50),
               decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                      blurRadius: 1,
+                      color: Theme.of(context).brightness == Brightness.light
+                          ? Colors.lightBlue[200]
+                          : Colors.black54,
+                      offset: Offset(0, 1))
+                ],
                 color: widget.messageObj['source'] == 'self'
-                    ? Colors.black12
-                    : Colors.black26,
+                    ? (Theme.of(widget.parentContext).brightness ==
+                            Brightness.light
+                        ? Colors.lightBlue[200]
+                        : Colors.blueGrey[600])
+                    : (Theme.of(widget.parentContext).brightness ==
+                            Brightness.light
+                        ? Colors.lightBlue[400]
+                        : Colors.blueGrey[700]),
                 borderRadius: BorderRadius.only(
                     bottomLeft: widget.messageObj['source'] == 'self'
                         ? borderRadius
@@ -70,7 +86,10 @@ class SingleMessageState extends State<SingleMessage>
                         : widget.messageObj['name'],
                     textAlign: TextAlign.start,
                     style: TextStyle(
-                        color: Colors.black,
+                        color: (Theme.of(widget.parentContext).brightness ==
+                                Brightness.light
+                            ? Colors.black
+                            : Colors.white),
                         fontWeight: FontWeight.bold,
                         fontSize: 12.0),
                   ),
@@ -78,7 +97,12 @@ class SingleMessageState extends State<SingleMessage>
                     margin: EdgeInsets.only(top: 10),
                     child: Text(
                       widget.messageObj['message'],
-                      style: TextStyle(color: Colors.black, fontSize: 15.0),
+                      style: TextStyle(
+                          color: Theme.of(widget.parentContext).brightness ==
+                                  Brightness.light
+                              ? Colors.black87
+                              : Colors.white70,
+                          fontSize: 15.0),
                     ),
                   )
                 ],
